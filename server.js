@@ -50,22 +50,55 @@ let socketIdCount = 1;
 
 const clients = {};
 
+let hostId;
+
 wss.on('connection', (ws) => {
     console.log('someone connected!');
     ws.id = socketIdCount++;
     clients[ws.id] = ws;
     ws.on('message', (message) => {
         const data = JSON.parse(message);
-        if (data.type) {// === 'offer') {
-            for (const clientId in clients) {
-                if (clientId != ws.id) {
-                    const client = clients[clientId];
-                    client.send(message);
-                }
+//        if (data.type) {// === 'offer') {
+//            for (const clientId in clients) {
+//                if (clientId != ws.id) {
+//                    const client = clients[clientId];
+//                    client.send(message);
+//                }
+//            }
+//        }
+//        console.log('message!');
+//        console.log(message);
+        if (data.type === 'HostRequest') {
+            if (!hostId) {
+                hostId = ws.id;
+                ws.send(JSON.stringify({
+                    type: 'HostResponse',
+                    success: true
+                }));
+            } else {
+                ws.send(JSON.stringify({
+                    type: 'HostResponse',
+                    success: false
+                }));
             }
+        } else if (data.type === 'RTCOffer') {
+            console.log("got offer request");
+            console.log(data);
+            const target = clients[data.targetId];
+            target.send(JSON.stringify(data.offer));
+        } else if (data.type === 'answer') {
+            clients[hostId].send(JSON.stringify({
+                type: 'answer',
+                answer: data,
+                targetId: ws.id
+            }));
+        } else if (data.type === 'PeerRequest') {
+            console.log("GOT PEER REQUEST");
+            clients[hostId].send(JSON.stringify({
+                type: "PeerRequest",
+                id: ws.id
+            }));
         }
-        console.log('message!');
-        console.log(message);
     });
 
     ws.on('close', () => {
