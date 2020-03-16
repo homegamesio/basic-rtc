@@ -1,56 +1,5 @@
 let socket;
 
-const init = () => {
-    const thing = new RTCPeerConnection();
-//    const dataChannel = thing.createDataChannel('test');
-    
-//    dataChannel.onopen = (thang) => {
-//        console.log("OPENED!");
-//        console.log(thang);
-//    };
-//    
-//    dataChannel.onmessage = (message) => {
-//        console.log("MESSAGE");
-//        console.log(message);
-//    };
-    
-//    dataChannel.onconnection = () => {
-//        console.log("GOT CONNECTION?");
-//    };
-    
-    const el = document.getElementById('ting');
-    
-    const button = document.getElementById('button');
-    
-    const output = document.getElementById('output');
-    
-    thing.onicecandidate = (e) => {
-        if (e.candidate === null) {
-            socket.send(JSON.stringify(thing.localDescription));
-        }
-    };
-    
-    thing.ondatachannel = (e) => {
-        console.log("DATA CHANNEL!");
-        const chan = e.channel || e;
-        setInterval(() => {
-            chan.send(Date.now());
-        }, 1000/60);
-    };
-    
-    console.log("huh");
-    thing.createOffer().then((desc) => {
-        const dataChannel = thing.createDataChannel('test');
-        console.log("DATA CHANNEL");
-        thing.setLocalDescription(desc);
-        socket.onmessage = (msg) => {
-            console.log("GOT MESSAGE");
-            console.log(msg.data);
-            thing.setRemoteDescription(new RTCSessionDescription(JSON.parse(msg.data)));
-        };
-    });
-};
-
 const becomeHost = () => new Promise((resolve, reject) => {
     socket.onmessage = (msg) => {
         const data = JSON.parse(msg.data);
@@ -65,55 +14,6 @@ const becomeHost = () => new Promise((resolve, reject) => {
         type: "HostRequest"
     }));
 });
-//    const thing = new RTCPeerConnection();
-//    thing.createOffer().then((desc) => {
-//        thing.setLocalDescription(desc);
-//        thing.ondatachannel = (e) => {
-//            console.log("DATA CHANNEL!");
-//            const chan = e.channel || e;
-//            setInterval(() => {
-//                chan.send(Date.now());
-//            }, 1000/60);
-//        };
-// 
-//        const dataChannel = thing.createDataChannel('test');
-//        socket.send(JSON.stringify(desc));
-//        console.log(dataChannel);
-//        //socket.onmessage = (msg) => {
-//        //    console.log("GOT MESSAGE");
-//        //    console.log(msg.data);
-//        //    thing.setRemoteDescription(new RTCSessionDescription(JSON.parse(msg.data)));
-//        //};
-//    });
-//};
-
-const initializeChannel = () => {
-    const thing = new RTCPeerConnection();
-    thing.createOffer().then((desc) => {
-        thing.setLocalDescription(desc);
-        socket.send(JSON.stringify(desc));
-        thing.ondatachannel = (e) => {
-            console.log("DATA CHANNEL!");
-            const chan = e.channel || e;
-            console.log(chan);
-        };
-    });
-//            setInterval(() => {
-//                chan.send(Date.now());
-//            }, 1000/60);
-//        };
-// 
-//        const dataChannel = thing.createDataChannel('test');
-//        socket.send(JSON.stringify(desc));
-//        console.log(dataChannel);
-//        //socket.onmessage = (msg) => {
-//        //    console.log("GOT MESSAGE");
-//        //    console.log(msg.data);
-//        //    thing.setRemoteDescription(new RTCSessionDescription(JSON.parse(msg.data)));
-//        //};
-//    });
-
-};
 
 socket = new WebSocket('ws://localhost');
 
@@ -123,47 +23,42 @@ const listenForConnections = () => {
     socket.onmessage = (msg) => {
         const data = JSON.parse(msg.data);
         if (data.type === 'PeerRequest') {
-            console.log("nice someone wants to be a peer");
             const thing = new RTCPeerConnection();
+            const dataChannel = thing.createDataChannel('homegames');
  
             thing.onicecandidate = (e) => {
-                console.log('ice candidate');
                 if (e.candidate === null) {
-                    socket.send(JSON.stringify(thing.localDescription));
+                    const offerMessage = {
+                        type: "RTCOffer",
+                        targetId: data.id,
+                        offer: thing.localDescription
+                    };
+                    socket.send(JSON.stringify(offerMessage));
                 }
             };
     
             thing.ondatachannel = (e) => {
-                console.log("DATA CHANNEL!");
                 const chan = e.channel || e;
-                console.log(chan);
-                //setInterval(() => {
-                //    chan.send(Date.now());
-                //}, 1000/60);
+                chan.send('uhhhh im a host');
+//                setInterval(() => {
+//                    chan.send(Date.now());
+//                }, 1000/60);
+            };
+
+            dataChannel.onmessage = (msg) => {
+                console.log("got a message from a peer?");
+                console.log(msg);
             };
 
             connections[data.id] = thing;
 
             thing.createOffer().then((offer) => {
-                console.log("HUH");
                 thing.setLocalDescription(offer);
-                socket.send(JSON.stringify({
-                    type: "RTCOffer",
-                    targetId: data.id,
-                    offer
-                }));
-                //console.log(msg.data);
-                //thing.setRemoteDescription(new RTCSessionDescription(JSON.parse(msg.data)));
             });
+
         } else if (data.type === 'answer') {
-            console.log("OFFER RESPONSE");
-            console.log(data);
             const connection = connections[data.targetId];
-            connection.setRemoteDescription(data.answer);
-            console.log(data.answer);
-            console.log("uhhhh");
-            const dataChannel = connection.createDataChannel('test');
-            console.log("CREATeD");
+            connection.setRemoteDescription(new RTCSessionDescription(data.answer));
         }
     };
 };
@@ -172,40 +67,33 @@ const makePeerRequest = () => {
     socket.onmessage = (msg) => {
         const data = JSON.parse(msg.data);
         if (data.type === 'offer') {
-            console.log("THIS HAPPENS");
             const connection = new RTCPeerConnection();
+            const dataChannel = connection.createDataChannel('homegames');
  
             connection.onicecandidate = (e) => {
-                console.log('peer ice candidate');
                 if (e.candidate === null) {
-                    //socket.send(JSON.stringify(thing.localDescription));
+                    socket.send(JSON.stringify(connection.localDescription));
                 }
             };
     
             connection.ondatachannel = (e) => {
-                console.log("DATA CHANNEL!");
                 const chan = e.channel || e;
-                console.log(chan);
-                //setInterval(() => {
-                //    chan.send(Date.now());
-                //}, 1000/60);
+                chan.send("AYY LMAO I AM A PEER");
             };
 
-            connection.setRemoteDescription(data);
+            dataChannel.onmessage = (msg) => {
+                console.log("Got a message from the host");
+                console.log(msg);
+            };
+
+            connection.setRemoteDescription(new RTCSessionDescription(data));
             connection.createAnswer().then((answer) => {
                 connection.setLocalDescription(answer);
-                socket.send(JSON.stringify(answer));
-
-                const dataChannel = connection.createDataChannel('test');
-                console.log('what now');
             });
             
         }
-        console.log("DATA");
-        console.log(data);
     };
 
-    console.log('sdsfsdf');
     socket.send(JSON.stringify({
         type: "PeerRequest"
     }));
@@ -213,19 +101,10 @@ const makePeerRequest = () => {
 
 socket.onopen = async () => {
     const isHost = await becomeHost();
-    console.log("AM I HOST");
-    console.log(isHost);
     if (isHost) {
         listenForConnections();
-        //initializeChannel();
     } else {
         makePeerRequest();
     }
 };
 
-onerror = (a, b, c, d, e) => {
-    const ting = document.getElementById('errors');
-    ting.innerHTML = ' ' + a + ' ' + b + ' ' + c + ' ' + d + ' ' + e;
-}
-
-//throw new Error('ayy lmao');
