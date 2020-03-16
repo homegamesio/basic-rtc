@@ -108,7 +108,9 @@ const broadcastTimestamps = () => {
     const timestamp = Date.now();
     for (const clientId in channels) {
         const channel = channels[clientId];
-        channel.send(timestamp);
+        if (channel.readyState === 'open') {
+            channel.send(timestamp);
+        }
     }
 };
 
