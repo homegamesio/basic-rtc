@@ -94,6 +94,15 @@ const makePeerRequest = () => {
             connection.setRemoteDescription(new RTCSessionDescription(data));
             connection.createAnswer().then((answer) => {
                 connection.setLocalDescription(answer);
+            }).then(_ => {
+                console.log("WHAT IS THIS");
+                if (connection.canTrickleIceCandidates) {
+                    console.log("WHAT");
+                    return connection.localDescription;
+                }
+            }).then(ting => {
+                console.log("TING?");
+                console.log(ting);
             });
             
         }
