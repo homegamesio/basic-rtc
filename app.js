@@ -15,9 +15,12 @@ const becomeHost = () => new Promise((resolve, reject) => {
     }));
 });
 
-socket = new WebSocket('ws://localhost');
+socket = new WebSocket('ws://192.168.0.107');
 
 const connections = {};
+const channels = {};
+
+const outputDiv = document.getElementById('output');
 
 const listenForConnections = () => {
     socket.onmessage = (msg) => {
@@ -39,10 +42,7 @@ const listenForConnections = () => {
     
             thing.ondatachannel = (e) => {
                 const chan = e.channel || e;
-                chan.send('uhhhh im a host');
-//                setInterval(() => {
-//                    chan.send(Date.now());
-//                }, 1000/60);
+                channels[data.id] = chan;
             };
 
             dataChannel.onmessage = (msg) => {
@@ -81,9 +81,13 @@ const makePeerRequest = () => {
                 chan.send("AYY LMAO I AM A PEER");
             };
 
+            const times = [];
             dataChannel.onmessage = (msg) => {
-                console.log("Got a message from the host");
-                console.log(msg);
+                const diff = Date.now() - Number(msg.data);
+                times.push(Date.now());
+                if (times.length % 60 === 0) {
+                    output.innerHTML = 'Got 60 frames in ' + Number(times[times.length - 1] - times[times.length - 61]) + 'ms';
+                }
             };
 
             connection.setRemoteDescription(new RTCSessionDescription(data));
@@ -99,10 +103,19 @@ const makePeerRequest = () => {
     }));
 };
 
+const broadcastTimestamps = () => {
+    const timestamp = Date.now();
+    for (const clientId in channels) {
+        const channel = channels[clientId];
+        channel.send(timestamp);
+    }
+};
+
 socket.onopen = async () => {
     const isHost = await becomeHost();
     if (isHost) {
         listenForConnections();
+        setInterval(broadcastTimestamps, 2);
     } else {
         makePeerRequest();
     }
