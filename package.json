@@ -1,0 +1,24 @@
+{
+  "name": "basic-rtc",
+  "version": "0.4.20",
+  "description": "\"simple\" web rtc example",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/homegamesio/basic-rtc.git"
+  },
+  "keywords": [
+    "homegames",
+    "basic",
+    "rtc",
+    "webrtc"
+  ],
+  "author": "Joseph Garcia",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/homegamesio/basic-rtc/issues"
+  },
+  "homepage": "https://homegames.io",
+  "dependencies": {
+    "ws": "^5.2.2"
+  }
+}
