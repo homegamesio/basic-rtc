@@ -15,7 +15,8 @@ const becomeHost = () => new Promise((resolve, reject) => {
     }));
 });
 
-socket = new WebSocket('ws://192.168.0.107');
+const ting = '192.168.0.107';
+socket = new WebSocket(`ws://${ting}`);
 
 const connections = {};
 const channels = {};
@@ -30,7 +31,7 @@ const listenForConnections = () => {
             const dataChannel = thing.createDataChannel('homegames');
  
             thing.onicecandidate = (e) => {
-                if (e.candidate === null) {
+                if (e.candidate !== null) {
                     const offerMessage = {
                         type: "RTCOffer",
                         targetId: data.id,
@@ -71,7 +72,7 @@ const makePeerRequest = () => {
             const dataChannel = connection.createDataChannel('homegames');
  
             connection.onicecandidate = (e) => {
-                if (e.candidate === null) {
+                if (e.candidate !== null) {
                     socket.send(JSON.stringify(connection.localDescription));
                 }
             };
