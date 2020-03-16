@@ -46,11 +46,30 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocket.Server({server});
 
+let socketIdCount = 1;
+
+const clients = {};
+
 wss.on('connection', (ws) => {
     console.log('someone connected!');
+    ws.id = socketIdCount++;
+    clients[ws.id] = ws;
     ws.on('message', (message) => {
+        const data = JSON.parse(message);
+        if (data.type) {// === 'offer') {
+            for (const clientId in clients) {
+                if (clientId != ws.id) {
+                    const client = clients[clientId];
+                    client.send(message);
+                }
+            }
+        }
         console.log('message!');
         console.log(message);
+    });
+
+    ws.on('close', () => {
+        delete clients[ws.id];
     });
 });
 

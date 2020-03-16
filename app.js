@@ -27,7 +27,6 @@ const init = () => {
     
     thing.onicecandidate = (e) => {
         if (e.candidate === null) {
-            console.log("gonna send");
             socket.send(JSON.stringify(thing.localDescription));
         }
     };
@@ -40,22 +39,24 @@ const init = () => {
         }, 1000/60);
     };
     
-    let clacked;
     thing.createOffer().then((desc) => {
         thing.setLocalDescription(desc);
-        button.onclick = () => {
-                if (clacked) {
-                    return;
-                }
-                clacked = true;
-                thing.setRemoteDescription(new RTCSessionDescription(JSON.parse(el.value)));
-            };
-        });
-    };
+        socket.onmessage = (msg) => {
+            console.log("GOT MESSAGE");
+            console.log(msg.data);
+            thing.setRemoteDescription(new RTCSessionDescription(JSON.parse(msg.data)));
+        };
+    });
 };
 
 socket = new WebSocket('ws://localhost');
 socket.onopen = () => {
-    console.log('opened that shit');
     init();
 };
+
+onerror = (a, b, c, d, e) => {
+    const ting = document.getElementById('errors');
+    ting.innerHTML = ' ' + a + ' ' + b + ' ' + c + ' ' + d + ' ' + e;
+}
+
+//throw new Error('ayy lmao');
