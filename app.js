@@ -15,8 +15,7 @@ const becomeHost = () => new Promise((resolve, reject) => {
     }));
 });
 
-const ting = window.location.hostname;
-socket = new WebSocket(`ws://${ting}`);
+socket = new WebSocket(`ws://${window.location.hostname}`);
 
 const connections = {};
 const channels = {};
