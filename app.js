@@ -15,7 +15,7 @@ const becomeHost = () => new Promise((resolve, reject) => {
     }));
 });
 
-const ting = '192.168.0.107';
+const ting = window.location.hostname;
 socket = new WebSocket(`ws://${ting}`);
 
 const connections = {};
@@ -79,7 +79,10 @@ const makePeerRequest = () => {
     
             connection.ondatachannel = (e) => {
                 const chan = e.channel || e;
-                chan.send("AYY LMAO I AM A PEER");
+
+                if (chan && chan.readyState === 'open') {
+                    chan.send("AYY LMAO I AM A PEER");
+                }
             };
 
             const times = [];
@@ -87,7 +90,7 @@ const makePeerRequest = () => {
                 const diff = Date.now() - Number(msg.data);
                 times.push(Date.now());
                 if (times.length % 60 === 0) {
-                    output.innerHTML = 'Got 60 frames in ' + Number(times[times.length - 1] - times[times.length - 61]) + 'ms';
+                    output.innerHTML = 'Got 60 frames in ' + Number(times[times.length - 1] - times[times.length - 61]) + 'ms. ' + times.length + ' total messages in ' + Number(times[times.length - 1] - times[0]) + 'ms';
                 }
             };
 
@@ -133,3 +136,7 @@ socket.onopen = async () => {
     }
 };
 
+
+onerror = (a, b, c, d, e, f) => {
+   errors.innerHTML = '' + a + ' ' + b + ' ' + c + ' ' + d + ' ' + e + ' ' + f; 
+};
