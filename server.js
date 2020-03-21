@@ -2,6 +2,7 @@ const http = require("http");
 const WebSocket = require('ws');
 const fs = require('fs');
 const path = require('path');
+const { RTCPeerConnection, RTCSessionDescription } = require('wrtc');
 
 const PATH_MAP = {
     "/": { 
@@ -44,38 +45,48 @@ const clients = {};
 
 let hostId;
 
+setInterval(() => {
+    const timestamp = '' + Date.now();
+    for (const wsId in clients) {
+        const channel = clients[wsId].channel;
+        if (channel) {
+            channel.send(timestamp);
+        }
+    }
+}, 5);
+
 wss.on('connection', (ws) => {
     ws.id = socketIdCount++;
-    clients[ws.id] = ws;
+    clients[ws.id] = {
+        socket: ws
+    };
     ws.on('message', (message) => {
+        console.log(message);
         const data = JSON.parse(message);
-        if (data.type === 'HostRequest') {
-            if (!hostId) {
-                hostId = ws.id;
-                ws.send(JSON.stringify({
-                    type: 'HostResponse',
-                    success: true
-                }));
-            } else {
-                ws.send(JSON.stringify({
-                    type: 'HostResponse',
-                    success: false
-                }));
-            }
-        } else if (data.type === 'RTCOffer') {
-            const target = clients[data.targetId];
-            target.send(JSON.stringify(data.offer));
+        if (data.type === 'PeerRequest') {
+            const connection = new RTCPeerConnection();
+            clients[ws.id].connection = connection;
+            connection.addEventListener('icecandidate', ({candidate}) => {
+                if (!candidate) {
+                    ws.send(JSON.stringify(connection.localDescription));
+                }
+            });
+            const dataChannel = connection.createDataChannel('homegames');
+            dataChannel.onopen = () => {
+                console.log("data channel opened");
+                clients[ws.id].channel = dataChannel;
+            };
+
+            connection.createOffer().then(offer => {
+                const replacedSDP = offer.sdp.replace(/\r\na=ice-options:trickle/g, '');
+                offer.sdp = replacedSDP;
+
+ 
+                connection.setLocalDescription(offer);
+            });
         } else if (data.type === 'answer') {
-            clients[hostId].send(JSON.stringify({
-                type: 'answer',
-                answer: data,
-                targetId: ws.id
-            }));
-        } else if (data.type === 'PeerRequest') {
-            clients[hostId].send(JSON.stringify({
-                type: "PeerRequest",
-                id: ws.id
-            }));
+            const connection = clients[ws.id].connection;
+            connection.setRemoteDescription(data);
         }
     });
 
