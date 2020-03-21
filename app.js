@@ -11,7 +11,7 @@ const makePeerRequest = () => {
 
     socket.onmessage = (msg) => {
         socket.onmessage = null;
-        const connection = new RTCPeerConnection();
+        const connection = new RTCPeerConnection({});
         const dataChannel = connection.createDataChannel('homegames');
  
         connection.onicecandidate = (e) => {
