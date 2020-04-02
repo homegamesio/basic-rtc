@@ -46,42 +46,64 @@ let hostId;
 
 wss.on('connection', (ws) => {
     ws.id = socketIdCount++;
-    clients[ws.id] = ws;
+    clients[ws.id] = {
+        socket: ws
+    }
     ws.on('message', (message) => {
-        const data = JSON.parse(message);
-        if (data.type === 'HostRequest') {
-            if (!hostId) {
-                hostId = ws.id;
-                ws.send(JSON.stringify({
-                    type: 'HostResponse',
-                    success: true
-                }));
-            } else {
-                ws.send(JSON.stringify({
-                    type: 'HostResponse',
-                    success: false
-                }));
+        if (message === 'ready') {
+            console.log("THEY READY");
+            clients[ws.id].ready = true;
+        } else {
+            const data = JSON.parse(message);
+            if (data.type === 'HostRequest') {
+                if (!hostId) {
+                    hostId = ws.id;
+                    ws.send(JSON.stringify({
+                        type: 'HostResponse',
+                        success: true
+                    }));
+                } else {
+                    ws.send(JSON.stringify({
+                        type: 'HostResponse',
+                        success: false
+                    }));
+                }
+            } else if (data.type === 'RTCOffer') {
+                const target = clients[data.targetId].socket;
+                target.send(JSON.stringify(data.offer));
+            } else if (data.type === 'answer') {
+                if (hostId) {
+                    clients[hostId].socket.send(JSON.stringify({
+                        type: 'answer',
+                        answer: data,
+                        targetId: ws.id
+                    }));
+                }
+            } else if (data.type === 'PeerRequest') {
+                if (hostId) {
+                    clients[hostId].socket.send(JSON.stringify({
+                        type: "PeerRequest",
+                        id: ws.id
+                    }));
+                }
             }
-        } else if (data.type === 'RTCOffer') {
-            const target = clients[data.targetId];
-            target.send(JSON.stringify(data.offer));
-        } else if (data.type === 'answer') {
-            clients[hostId].send(JSON.stringify({
-                type: 'answer',
-                answer: data,
-                targetId: ws.id
-            }));
-        } else if (data.type === 'PeerRequest') {
-            clients[hostId].send(JSON.stringify({
-                type: "PeerRequest",
-                id: ws.id
-            }));
         }
     });
 
     ws.on('close', () => {
+        if (hostId === ws.id) {
+            hostId = null;
+        }
         delete clients[ws.id];
     });
 });
+
+setInterval(() => {
+    for (const clientId in clients) {
+        if (clients[clientId].ready) {
+            clients[clientId].socket.send('I am a server');
+        }
+    }
+}, 1000);
 
 server.listen(80);

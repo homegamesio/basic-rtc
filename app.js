@@ -1,141 +1,133 @@
-let socket;
+const disableIceTrickle = desc => desc.replace(/\r\na=ice-options:trickle/g, '');
 
-const becomeHost = () => new Promise((resolve, reject) => {
-    socket.onmessage = (msg) => {
-        const data = JSON.parse(msg.data);
-        if (data.type === 'HostResponse') {
-            resolve(data.success);
-        } else {
-            reject();
-        }
-    };
+const rtcRelay = (socketUrl) => {
+    const connections = {};
+    const socket = new WebSocket(socketUrl);
 
-    socket.send(JSON.stringify({
-        type: "HostRequest"
-    }));
-});
+    const becomeHost = () => new Promise((resolve, reject) => {
+        socket.onmessage = (msg) => {
+            const data = JSON.parse(msg.data);
+            if (data.type === 'HostResponse') {
+                resolve(data.success);
+            } else {
+                reject();
+            }
+        };
 
-socket = new WebSocket(`ws://${window.location.hostname}`);
+        socket.send(JSON.stringify({
+            type: "HostRequest"
+        }));
+    });
 
-const connections = {};
-const channels = {};
-
-const outputDiv = document.getElementById('output');
-
-const listenForConnections = () => {
-    socket.onmessage = (msg) => {
-        const data = JSON.parse(msg.data);
-        if (data.type === 'PeerRequest') {
-            const thing = new RTCPeerConnection();
-            const dataChannel = thing.createDataChannel('homegames');
- 
-            thing.onicecandidate = (e) => {
-                if (e.candidate !== null) {
-                    const offerMessage = {
-                        type: "RTCOffer",
-                        targetId: data.id,
-                        offer: thing.localDescription
+    const listenForConnections = () => {
+        const channels = [];
+        socket.onmessage = (msg) => {
+            if (typeof(msg.data) === 'string' && msg.data.charAt(0) === '{') {
+                const data = JSON.parse(msg.data);
+                if (data.type === 'PeerRequest') {
+                    const thing = new RTCPeerConnection({});
+         
+                    thing.onicecandidate = (e) => {
+                        const offerMessage = {
+                            type: "RTCOffer",
+                            targetId: data.id,
+                            offer: thing.localDescription
+                        };
+                        socket.send(JSON.stringify(offerMessage));
                     };
-                    socket.send(JSON.stringify(offerMessage));
-                }
-            };
-    
-            thing.ondatachannel = (e) => {
-                const chan = e.channel || e;
-                channels[data.id] = chan;
-            };
-
-            dataChannel.onmessage = (msg) => {
-                console.log("got a message from a peer?");
-                console.log(msg);
-            };
-
-            connections[data.id] = thing;
-
-            thing.createOffer().then((offer) => {
-                thing.setLocalDescription(offer);
-            });
-
-        } else if (data.type === 'answer') {
-            const connection = connections[data.targetId];
-            connection.setRemoteDescription(new RTCSessionDescription(data.answer));
-        }
-    };
-};
-
-const makePeerRequest = () => {
-    socket.onmessage = (msg) => {
-        const data = JSON.parse(msg.data);
-        if (data.type === 'offer') {
-            const connection = new RTCPeerConnection();
-            const dataChannel = connection.createDataChannel('homegames');
- 
-            connection.onicecandidate = (e) => {
-                if (e.candidate !== null) {
-                    socket.send(JSON.stringify(connection.localDescription));
-                }
-            };
-    
-            connection.ondatachannel = (e) => {
-                const chan = e.channel || e;
-
-                if (chan && chan.readyState === 'open') {
-                    chan.send("AYY LMAO I AM A PEER");
-                }
-            };
-
-            const times = [];
-            dataChannel.onmessage = (msg) => {
-                const diff = Date.now() - Number(msg.data);
-                times.push(Date.now());
-                if (times.length % 60 === 0) {
-                    output.innerHTML = 'Got 60 frames in ' + Number(times[times.length - 1] - times[times.length - 61]) + 'ms. ' + times.length + ' total messages in ' + Number(times[times.length - 1] - times[0]) + 'ms';
-                }
-            };
-
-            connection.setRemoteDescription(new RTCSessionDescription(data));
-            connection.createAnswer().then((answer) => {
-                connection.setLocalDescription(answer);
-            }).then(_ => {
-                console.log("WHAT IS THIS");
-                if (connection.canTrickleIceCandidates) {
-                    console.log("WHAT");
-                    return connection.localDescription;
-                }
-            }).then(ting => {
-                console.log("TING?");
-                console.log(ting);
-            });
             
+                    const dataChannel = thing.createDataChannel('homegames');
+                    dataChannel.onopen = () => {
+                        channels.push(dataChannel);
+                    }
+        
+                    connections[data.id] = thing;
+        
+                    thing.createOffer().then((offer) => {
+                        const replacedSDP = disableIceTrickle(offer.sdp);
+                        offer.sdp = replacedSDP;
+    
+                        thing.setLocalDescription(offer);
+                    });
+        
+                } else if (data.type === 'answer') {
+                    const connection = connections[data.targetId];
+    
+                    if (connection.signalingState !== 'stable') {
+                        connection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                    }
+                } else {
+                    this.onmessage && this.onmessage(msg.data);
+                }
+            } else {
+                for (let channelIndex in channels) {
+                    channels[channelIndex].send(msg.data)
+                }
+                this.onmessage && this.onmessage(msg.data);
+            }
+        };
+    };
+
+    const makePeerRequest = () => new Promise((resolve, reject) => {
+        socket.onmessage = (msg) => {
+            const data = JSON.parse(msg.data);
+            if (data.type === 'offer') {
+                const connection = new RTCPeerConnection({});
+     
+                connection.onicecandidate = (e) => {
+                    socket.send(JSON.stringify(connection.localDescription));
+                };
+
+                connection.ondatachannel = (e) => {
+                    const chan = e.channel || e;
+                    chan.onmessage = (msg) => this.onmessage(msg.data);
+                    resolve(true);
+                };
+    
+                connection.setRemoteDescription(new RTCSessionDescription(data));
+                connection.createAnswer().then((answer) => {
+                    const replacedSDP = disableIceTrickle(answer.sdp);
+                    answer.sdp = replacedSDP;
+
+                    connection.setLocalDescription(answer);
+                });
+            }
+        };
+    
+        socket.send(JSON.stringify({
+            type: "PeerRequest"
+        }));
+    });
+
+
+    socket.onopen = async () => {
+        const isHost = await becomeHost();
+        if (isHost) {
+            listenForConnections();
+            socket.send('ready');
+            this.onopen();
+        } else {
+            makePeerRequest().then(success => {
+                if (success) {
+                    console.log("I OPENED THAT BOU");
+                } else {
+                    socket.send('ready');
+                }
+                this.onopen();
+            });
         }
     };
 
-    socket.send(JSON.stringify({
-        type: "PeerRequest"
-    }));
+    return this;
 };
 
-const broadcastTimestamps = () => {
-    const timestamp = Date.now();
-    for (const clientId in channels) {
-        const channel = channels[clientId];
-        if (channel.readyState === 'open') {
-            channel.send(timestamp);
-        }
-    }
-};
+const relay = rtcRelay(`ws://${window.location.hostname}`);
 
-socket.onopen = async () => {
-    const isHost = await becomeHost();
-    if (isHost) {
-        listenForConnections();
-        setInterval(broadcastTimestamps, 2);
-    } else {
-        makePeerRequest();
-    }
-};
+relay.onmessage = (msg) => {
+    console.log('got a message!');
+    console.log(msg);
+}
 
-
-onerror = (a, b, c, d, e, f) => {
-   errors.innerHTML = '' + a + ' ' + b + ' ' + c + ' ' + d + ' ' + e + ' ' + f; 
+relay.onopen = () => {
+    console.log("DATA CHANNEL INITIALIZED");
 };
