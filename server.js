@@ -8,8 +8,8 @@ const PATH_MAP = {
         path: "index.html",
         contentType: "text/html"
     },
-    "/app.js": {
-        path: "app.js",
+    "/bundle.js": {
+        path: "web/bundle.js",
         contentType: "text/javascript"
     }
 };
@@ -51,9 +51,8 @@ wss.on('connection', (ws) => {
     }
     ws.on('message', (message) => {
         if (message === 'ready') {
-            console.log("THEY READY");
             clients[ws.id].ready = true;
-        } else {
+        } else if (typeof(message) === 'string' && message.charAt(0) === '{') {
             const data = JSON.parse(message);
             if (data.type === 'HostRequest') {
                 if (!hostId) {
@@ -87,6 +86,9 @@ wss.on('connection', (ws) => {
                     }));
                 }
             }
+        } else {
+            console.log("Unknown message");
+            console.log(message);
         }
     });
 
@@ -99,11 +101,15 @@ wss.on('connection', (ws) => {
 });
 
 setInterval(() => {
+    const randomStuff = new Array(1000);
+    for (let i = 0; i < randomStuff.length; i++) {
+        randomStuff[i] = Math.floor(Math.random() * 255);
+    }
     for (const clientId in clients) {
         if (clients[clientId].ready) {
-            clients[clientId].socket.send('I am a server');
+            clients[clientId].socket.send(randomStuff);
         }
     }
-}, 1000);
+}, 10);
 
 server.listen(80);
