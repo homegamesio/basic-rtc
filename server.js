@@ -101,15 +101,16 @@ wss.on('connection', (ws) => {
 });
 
 setInterval(() => {
-    const randomStuff = new Array(1000);
+    const randomStuff = new Array(10000);
     for (let i = 0; i < randomStuff.length; i++) {
         randomStuff[i] = Math.floor(Math.random() * 255);
     }
+
     for (const clientId in clients) {
         if (clients[clientId].ready) {
             clients[clientId].socket.send(randomStuff);
         }
     }
-}, 10);
+}, 1000 / 60);
 
 server.listen(80);
